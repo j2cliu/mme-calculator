@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MME Calculator - 台灣版</title>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-top: -10px;
+            margin-bottom: 20px;
+        }
+        .medication-row {
+            display: grid;
+            grid-template-columns: 2.5fr 2fr 1fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        select, input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .remove-btn {
+            background-color: #e74c3c;
+            padding: 8px 15px;
+        }
+        .remove-btn:hover {
+            background-color: #c0392b;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .danger {
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+        .safe {
+            background-color: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💊 MME Calculator</h1>
+        <p class="subtitle">Morphine Milligram Equivalents (台灣版)</p>
+        
+        <div id="medications">
+            <div class="medication-row">
+                <select class="med-select" onchange="updateDoseOptions(this)">
+                    <option value="">選擇藥物</option>
+                    <option value="codeine-oral">Codeine 口服 (30mg/tab)</option>
+                    <option value="codeine-injection">Codeine 注射 (15mg/ml/amp)</option>
+                    <option value="fentanyl-injection-100">Fentanyl 注射 (100mcg/2ml/amp)</option>
+                    <option value="fentanyl-injection-500">Fentanyl 注射 (500mcg/10ml/amp)</option>
+                    <option value="fentanyl-buccal-100">Fentanyl 口頰 (100mcg/film)</option>
+                    <option value="fentanyl-buccal-200">Fentanyl 口頰 (200mcg/film)</option>
+                    <option value="fentanyl-patch-12">Fentanyl 貼片 (12.5mcg/hr)</option>
+                    <option value="fentanyl-patch-25">Fentanyl 貼片 (25mcg/hr)</option>
+                    <option value="fentanyl-patch-50">Fentanyl 貼片 (50mcg/hr)</option>
+                    <option value="meperidine-injection">Meperidine 注射 (50mg/ml/amp)</option>
+                    <option value="morphine-injection">Morphine 注射 (10mg/ml/amp)</option>
+                    <option value="morphine-oral-15">Morphine 口服 (15mg/tab)</option>
+                    <option value="morphine-oral-30">Morphine 口服 (30mg/tab)</option>
+                    <option value="nalbuphine-injection">Nalbuphine 注射 (10mg/ml/amp)</option>
+                    <option value="oxycodone-oral">Oxycodone 口服 (10mg/tab)</option>
+                    <option value="tramadol-oral">Tramadol 口服 (100mg/tab)</option>
+                    <option value="tramadol-injection">Tramadol 注射 (100mg/2ml/amp)</option>
+                    <option value="ultracet">Ultracet 口服 (37.5mg/tab)</option>
+                </select>
+                <select class="dose-select" onchange="setCustomDose(this)">
+                    <option value="">選擇劑量</option>
+                </select>
+                <input type="number" class="dose" placeholder="數量" min="0" step="0.5">
+                <input type="number" class="frequency" placeholder="次數/天" min="0" step="0.5" value="1">
+                <button class="remove-btn" onclick="removeRow(this)" style="display:none;">移除</button>
+            </div>
+        </div>
+        
+        <button onclick="addMedication()">➕ 新增藥物</button>
+        <button onclick="calculate()" style="background-color: #27ae60; margin-left: 10px;">計算 MME</button>
+        <button onclick="reset()" style="background-color: #95a5a6; margin-left: 10px;">清除</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // 藥物規格和轉換係數
+        const medications = {
+            'codeine-oral': { dose: 30, unit: 'tab', factor: 0.15, route: '口服' },
+            'codeine-injection': { dose: 15, unit: 'amp', factor: 0.15 * 2, route: '注射' },
+            
+            'fentanyl-injection-100': { dose: 100, unit: 'amp', factor: 0.1, route: '注射' },
+            'fentanyl-injection-500': { dose: 500, unit: 'amp', factor: 0.1, route: '注射' },
+            'fentanyl-buccal-100': { dose: 100, unit: 'film', factor: 0.13, route: '口頰' },
+            'fentanyl-buccal-200': { dose: 200, unit: 'film', factor: 0.13, route: '口頰' },
+            'fentanyl-patch-12': { dose: 12.5, unit: 'patch', factor: 2.4, route: '貼片', isPatch: true },
+            'fentanyl-patch-25': { dose: 25, unit: 'patch', factor: 2.4, route: '貼片', isPatch: true },
+            'fentanyl-patch-50': { dose: 50, unit: 'patch', factor: 2.4, route: '貼片', isPatch: true },
+            
+            'meperidine-injection': { dose: 50, unit: 'amp', factor: 0.1, route: '注射' },
+            
+            'morphine-injection': { dose: 10, unit: 'amp', factor: 3, route: '注射' },
+            'morphine-oral-15': { dose: 15, unit: 'tab', factor: 1, route: '口服' },
+            'morphine-oral-30': { dose: 30, unit: 'tab', factor: 1, route: '口服' },
+            
+            'nalbuphine-injection': { dose: 10, unit: 'amp', factor: 1, route: '注射' },
+            
+            'oxycodone-oral': { dose: 10, unit: 'tab', factor: 1.5, route: '口服' },
+            
+            'tramadol-oral': { dose: 100, unit: 'tab', factor: 0.1, route: '口服' },
+            'tramadol-injection': { dose: 100, unit: 'amp', factor: 0.1, route: '注射' },
+            
+            'ultracet': { dose: 37.5, unit: 'tab', factor: 0.1, route: '口服' }
+        };
+
+        // 常見使用數量
+        const commonQuantities = {
+            'tab': [0.5, 1, 1.5, 2, 3],
+            'amp': [0.5, 1, 1.5, 2, 3],
+            'patch': [1],
+            'film': [1, 2]
+        };
+
+        function updateDoseOptions(selectElement) {
+            const row = selectElement.closest('.medication-row');
+            const doseSelect = row.querySelector('.dose-select');
+            const doseInput = row.querySelector('.dose');
+            const medKey = selectElement.value;
+
+            doseSelect.innerHTML = '<option value="">選擇劑量</option>';
+            doseInput.value = '';
+
+            if (medKey && medications[medKey]) {
+                const med = medications[medKey];
+                const quantities = commonQuantities[med.unit] || [1];
+                
+                quantities.forEach(qty => {
+                    const option = document.createElement('option');
+                    option.value = qty;
+                    const totalDose = med.dose * qty;
+                    option.text = `${qty} ${med.unit} (${totalDose}${med.unit === 'patch' ? 'mcg/hr' : med.unit === 'film' ? 'mcg' : 'mg'})`;
+                    doseSelect.appendChild(option);
+                });
+            }
+        }
+
+        function setCustomDose(selectElement) {
+            const row = selectElement.closest('.medication-row');
+            const doseInput = row.querySelector('.dose');
+            if (selectElement.value) {
+                doseInput.value = selectElement.value;
+            }
+        }
+
+        function addMedication() {
+            const container = document.getElementById('medications');
+            const newRow = container.firstElementChild.cloneNode(true);
+            newRow.querySelector('.med-select').value = '';
+            newRow.querySelector('.dose-select').innerHTML = '<option value="">選擇劑量</option>';
+            newRow.querySelector('.dose').value = '';
+            newRow.querySelector('.frequency').value = '1';
+            newRow.querySelector('.remove-btn').style.display = 'inline-block';
+            container.appendChild(newRow);
+        }
+
+        function removeRow(btn) {
+            btn.parentElement.remove();
+        }
+
+        function calculate() {
+            const rows = document.querySelectorAll('.medication-row');
+            let totalMME = 0;
+            let details = [];
+
+            rows.forEach(row => {
+                const medKey = row.querySelector('.med-select').value;
+                const quantity = parseFloat(row.querySelector('.dose').value) || 0;
+                const freq = parseFloat(row.querySelector('.frequency').value) || 1;
+
+                if (medKey && quantity > 0) {
+                    const med = medications[medKey];
+                    const actualDose = med.dose * quantity;
+                    let dailyMME;
+                    
+                    if (med.isPatch) {
+                        // 貼片是持續釋放，不需要乘以頻率
+                        dailyMME = actualDose * med.factor;
+                    } else {
+                        dailyMME = actualDose * freq * med.factor;
+                    }
+                    
+                    totalMME += dailyMME;
+                    
+                    const medName = row.querySelector('.med-select').selectedOptions[0].text;
+                    const freqText = med.isPatch ? '' : ` × ${freq}/天`;
+                    details.push(`${medName}: ${quantity} ${med.unit}${freqText} = ${dailyMME.toFixed(1)} MME/day`);
+                }
+            });
+
+            displayResult(totalMME, details);
+        }
+
+        function displayResult(totalMME, details) {
+            const resultDiv = document.getElementById('result');
+            
+            if (totalMME === 0) {
+                resultDiv.innerHTML = '<div class="result">請輸入藥物和劑量</div>';
+                return;
+            }
+
+            let warningClass = '';
+            let warningText = '';
+
+            if (totalMME >= 90) {
+                warningClass = 'danger';
+                warningText = '⚠️ <strong>高劑量警示！</strong> CDC 建議避免 ≥90 MME/day，請考慮降低劑量或轉介疼痛專科';
+            } else if (totalMME >= 50) {
+                warningClass = 'warning';
+                warningText = '⚠️ <strong>中等劑量</strong> 接近高劑量範圍 (50-90 MME/day)，建議謹慎評估風險效益';
+            } else {
+                warningClass = 'safe';
+                warningText = '✓ <strong>相對安全範圍</strong> (<50 MME/day)';
+            }
+
+            let html = '<div class="result">';
+            html += `<strong>總 MME：${totalMME.toFixed(1)} mg/day</strong><br>`;
+            html += '<small style="color: #7f8c8d;">(Morphine Milligram Equivalents per day)</small><br><br>';
+            html += '<strong>詳細計算：</strong><br>';
+            details.forEach(d => html += `• ${d}<br>`);
+            html += '</div>';
+
+            html += `<div class="warning ${warningClass}">${warningText}</div>`;
+
+            resultDiv.innerHTML = html;
+        }
+
+        function reset() {
+            const container = document.getElementById('medications');
+            const firstRow = container.firstElementChild;
+            container.innerHTML = '';
+            container.appendChild(firstRow);
+            firstRow.querySelector('.med-select').value = '';
+            firstRow.querySelector('.dose-select').innerHTML = '<option value="">選擇劑量</option>';
+            firstRow.querySelector('.dose').value = '';
+            firstRow.querySelector('.frequency').value = '1';
+            document.getElementById('result').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
